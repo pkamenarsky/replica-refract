@@ -28,24 +28,24 @@ el_ t props = el t (props >> pure empty)
 
 elWithNamespace :: Maybe VDOM.Namespace -> T.Text -> Props' st (UI st) -> UI st
 elWithNamespace ns name (Props props) = UI $ do
-  (setState, st) <- R.ask
+  (modState, st) <- R.ask
 
   children <- R.asks (W.execWriter . R.runReaderT ui)
 
   lift $ W.tell
     [ VDOM.VNode
         name
-        (M.unions $ map (toProps setState st) mprops)
+        (M.unions $ map (toProps modState st) mprops)
         ns
         children
     ]
   where
     (UI ui, mprops) = W.runWriter props
 
-    toProps setState st (k, (PropEvent opts f)) = M.singleton k $ VDOM.AEvent opts $ \de -> case f de of Mod f -> setState (ST.execStateT $ R.runReaderT f (setState, st))
-    toProps setState st (k, (PropText v)) = M.singleton k $ VDOM.AText v
-    toProps setState st (k, (PropBool v)) = M.singleton k $ VDOM.ABool v
-    toProps setState st (k, (PropMap (Props m))) = M.singleton k $ VDOM.AMap $ M.unions $ map (toProps setState st) (W.execWriter m)
+    toProps modState st (k, (PropEvent opts f)) = M.singleton k $ VDOM.AEvent opts $ \de -> case f de of Mod f -> modState (ST.execStateT $ R.runReaderT f modState)
+    toProps modState st (k, (PropText v)) = M.singleton k $ VDOM.AText v
+    toProps modState st (k, (PropBool v)) = M.singleton k $ VDOM.ABool v
+    toProps modState st (k, (PropMap (Props m))) = M.singleton k $ VDOM.AMap $ M.unions $ map (toProps modState st) (W.execWriter m)
  
 empty :: UI st
 empty = UI $ pure ()

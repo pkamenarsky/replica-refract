@@ -16,9 +16,10 @@ import qualified Data.Text                 as T
 import           Replica.VDOM              (DOMEvent)
 import           Replica.VDOM.Types        (DOMEvent(getDOMEvent), EventOptions(EventOptions))
 
-type Ctx st = ((st -> IO st) -> IO (), st)
+type ModState st = (st -> IO st) -> IO ()
+type Ctx st = (ModState st, st)
 
-newtype Mod st a = Mod (R.ReaderT (Ctx st) (ST.StateT st IO) a)
+newtype Mod st a = Mod (R.ReaderT (ModState st) (ST.StateT st IO) a)
   deriving (Functor, Applicative, Monad)
 
 modify :: (st -> IO (a, st)) -> Mod st a
@@ -38,11 +39,11 @@ nonBlockingIO io = Mod $ liftIO io
 
 blockingIO :: IO (Mod st ()) -> Mod st ()
 blockingIO io = Mod $ do
-  env@(setState, st) <- R.ask
+  modState <- R.ask
 
   liftIO $ void $ forkIO $ do
     Mod f <- io
-    setState $ ST.execStateT (R.runReaderT f env)
+    modState $ ST.execStateT $ R.runReaderT f modState
 
 data Prop st
   = PropText T.Text
@@ -54,10 +55,6 @@ newtype Props' st a = Props (W.Writer [(T.Text, Prop st)] a)
   deriving (Functor, Applicative, Monad)
 
 type Props st = Props' st ()
-
--- blockingIO :: IO (ST.StateT st IO ()) -> Props st
--- blockingIO io = liftIO $ void $ forkIO $
---   undefined
 
 props :: T.Text -> Prop st -> Props st
 props k v = Props $ W.tell [(k, v)]
